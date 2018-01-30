@@ -1,8 +1,13 @@
 package com.crescendo;
 
+import gvjava.org.json.JSONArray;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Properties;
 import javax.mail.Authenticator;
 import javax.mail.Message;
@@ -13,17 +18,47 @@ import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import javax.servlet.http.HttpServletRequest;
+import org.apache.commons.io.IOUtils;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
+import com.business.Recipe;
 
 @Controller
 public class SendEmailController {	
 
+
+	@RequestMapping(value = "/getRecipe.do", method = RequestMethod.GET)
+	public String getRecipe(ModelMap model) {
+		List<Recipe> dataList = new ArrayList<>();
+		try {			
+			String uri = "http://www.johnsonville.com/recipes.top-rated.json";
+			URL url = new URL(uri);
+			HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+			connection.setRequestMethod("GET");
+			connection.setRequestProperty("Accept", "application/json");
+			InputStream inputStrm = connection.getInputStream();
+			String recipeDataStr = IOUtils.toString(inputStrm);
+			JSONArray recipeArr = new JSONArray(recipeDataStr);
+			for(int i=0; i<recipeArr.length(); i++){
+				Recipe recipe = Recipe.create(recipeArr.getJSONObject(i));
+				dataList.add(recipe);
+				System.out.println(recipe.getLargeImageUrl());
+				System.out.println(recipe.toJSON());
+			}
+		} catch (Exception e) {
+			model.addAttribute("message", e.getMessage());
+			return "Error";
+		} 
+		model.addAttribute("recipeList", dataList);
+		return "Recipe";
+	}
+
+
 	@RequestMapping(value = "/sendEmail.do", method = RequestMethod.POST)
 	public String doSendEmail(HttpServletRequest request, ModelMap model) {
-		
+
 		//Retrieve inputs from contact form
 		String firstName = request.getParameter("firstName");
 		String lastName = request.getParameter("lastName");
@@ -34,7 +69,7 @@ public class SendEmailController {
 			return "Error";
 		}else{
 			final String SSL_FACTORY = "javax.net.ssl.SSLSocketFactory";
-			
+
 			//Set Properties object
 			Properties props = System.getProperties();
 			props.setProperty("mail.smtp.host", "smtp.gmail.com");
